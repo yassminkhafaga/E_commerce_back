@@ -1,10 +1,21 @@
-const {getAllCategories,addCategory,deleteCategory,updateCategory} = require("../controllers/category.controller");
+const {
+  getAllCategories,
+  addCategory,
+  deleteCategory,
+  updateCategory,
+  getSubcategoriesByCategory,
+  getCategoriesWithSubcategories,
+} = require("../controllers/category.controller");
 const express = require("express");
 const router = express.Router();
-const {authenticate} = require("../midllewares/auth.middleware");
-const {authorize} = require("../midllewares/role.middleware");
-router.get("/",authenticate,authorize("admin"),getAllCategories);
-router.post("/", authenticate, authorize("admin"),addCategory);
-router.delete("/:id",authenticate,authorize("admin"),deleteCategory);
-router.put("/:id",authenticate,authorize("admin"),updateCategory);
+const { upload } = require("../midllewares/upload.middleware");
+const { authenticate } = require("../midllewares/auth.middleware");
+const { authorize } = require("../midllewares/role.middleware");
+
+router.get("/",getAllCategories);
+router.get("/with-subcategories",getCategoriesWithSubcategories);
+router.get("/:categoryId", getSubcategoriesByCategory);
+router.post("/",authenticate,authorize("admin"),upload.single("image"),addCategory);
+router.delete("/:id", authenticate, authorize("admin"), deleteCategory);
+router.put("/:id",authenticate,authorize("admin"),upload.single("image"),updateCategory);
 module.exports = router;

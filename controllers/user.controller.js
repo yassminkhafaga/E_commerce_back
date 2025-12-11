@@ -19,10 +19,8 @@ exports.getAllUsers = async (req,res)=>{
   const limitNumber = Number(limit);
   const skip = (pageNumber - 1) * limitNumber;
   const users = await User.find().skip(skip).limit(limitNumber);
-  // حساب العدد الكلي وعدد الصفحات
   const totalUsers = await User.countDocuments();
   const totalPages = Math.ceil(totalUsers / limitNumber);
-
   res.status(200).json({ message: "All users", data: users,pagination:{totalUsers,totalPages ,currentPage:pageNumber,pageSize:limitNumber}});
  } catch (error) {
      res.status(500).json({ error: "error in getting users" });

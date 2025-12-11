@@ -3,92 +3,116 @@
 ///getAllProducts
 ///getProductBySlug
 ///updateProduct
-const Product = require('../models/product.model');
-/////add product
-exports.addProduct=async(req,res)=>{
-    const {name,price,category,supCategory,image,stock,description,slug}=req.body;
-    const imgURL = req.file.filename;
-  
-    const product = await Product.create({
+///getProductsAndSubCategories
+///getProductsBySubcategory
+
+const Product = require("../models/product.model");
+const Category = require("../models/category.model");
+const Subcategory = require("../models/subcategory.model");
+
+exports.addProduct = async (req, res) => {
+  const {
     name,
     price,
-    category,
-    supCategory,
+    categoryId,
+    subCategoryId,
+    image,
+    stock,
+    description,
+    slug,
+  } = req.body;
+
+  const subcategory = await Subcategory.findById(subCategoryId);
+  if (!subcategory || subcategory.category.toString() !== categoryId) {
+    return res
+      .status(400)
+      .json({ message: "Subcategory does not belong to this category" });
+  }
+  if (!req.file) {
+    return res.status(400).json({ message: "Image is required" });
+  }
+  const imgURL = req.file.filename;
+  const product = await Product.create({
+    name,
+    price,
+    category: categoryId,
+    subCategory: subCategoryId,
     image: imgURL,
     stock,
     description,
     slug,
   });
-    res.status(200).json({message:"Product added successfully",data:product});
-}
-////////////delete product 
-exports.deleteProduct=async(req,res)=>{
-    const id = req.params.id;
-    const product = await Product.findByIdAndUpdate(id,{isDeletes:true});
-    if(product){
-        res.status(200).json({message:"Product deleted successfully",data:product});
-    }
-    else{
-        res.status(404).json({message:"Product not found"});
-    }
-}
+  res
+    .status(201)
+    .json({ message: "Product added successfully", data: product });
+};
+////////////delete product
+exports.deleteProduct = async (req, res) => {
+  const id = req.params.id;
+  const product = await Product.findByIdAndUpdate(id, { isDeleted: true });
+  if (product) {
+    res
+      .status(200)
+      .json({ message: "Product deleted successfully", data: product });
+  } else {
+    res.status(404).json({ message: "Product not found" });
+  }
+};
 ///////////get all products
 exports.getAllProducts = async (req, res) => {
   try {
     const {
       sort,
       order,
+      category,
+      subCategory,
       minPrice,
       maxPrice,
       keyword,
       page = 1,
       limit = 10,
-      ...filters
     } = req.query;
 
-    // تحويل page و limit لـ Number
-    const pageNumber = Number(page);
-    const limitNumber = Number(limit);
-    const skip = (pageNumber - 1) * limitNumber;
+    const filter = { isDeleted: false };
 
-    // فلتر الأساسي (Soft Delete)
-    let filter = { isDeletes: false, ...filters };
+    if (category) filter.category = category;
+    if (subCategory) filter.subCategory = subCategory;
 
-    // فلترة السعر لو موجود
     if (minPrice || maxPrice) {
       filter.price = {};
       if (minPrice) filter.price.$gte = Number(minPrice);
       if (maxPrice) filter.price.$lte = Number(maxPrice);
     }
 
-    // فلتر keyword على الاسم أو الوصف لو موجود
     if (keyword) {
-      const regex = new RegExp(keyword, "i"); // i عشان يكون case-insensitive
+      const regex = new RegExp(keyword, "i");
       filter.$or = [{ name: regex }, { description: regex }];
     }
 
-    // إعداد sort
-    let sortObj = {};
+    const pageNum = Number(page);
+    const limitNum = Number(limit);
+    const skip = (pageNum - 1) * limitNum;
+
+    const sortObj = {};
     if (sort) sortObj[sort] = order === "desc" ? -1 : 1;
 
-    // جلب المنتجات مع pagination و sort
     const products = await Product.find(filter)
+      .populate("category")
+      .populate("subCategory")
       .sort(sortObj)
       .skip(skip)
-      .limit(limitNumber);
+      .limit(limitNum);
 
-    // عدد المنتجات الكلي وعدد الصفحات
-    const totalProducts = await Product.countDocuments(filter);
-    const totalPages = Math.ceil(totalProducts / limitNumber);
+    const total = await Product.countDocuments(filter);
 
     res.status(200).json({
       message: "Products fetched successfully",
       data: products,
       pagination: {
-        totalProducts,
-        totalPages,
-        currentPage: pageNumber,
-        pageSize: limitNumber,
+        total,
+        totalPages: Math.ceil(total / limitNum),
+        currentPage: pageNum,
+        size: limitNum,
       },
     });
   } catch (err) {
@@ -98,44 +122,78 @@ exports.getAllProducts = async (req, res) => {
   }
 };
 
-
 //////////get product by slug
-exports.getProductBySlug=async(req,res)=>{
-    const slug = req.params.slug;
-    const product = await Product.findOne({slug,isDeletes:false});
-    if(product){
-        res.status(200).json({message:"Product found",data:product});
-    }
-    else{
-        res.status(404).json({message:"Product not found"});
-    }
-}
+exports.getProductBySlug = async (req, res) => {
+  const slug = req.params.slug;
+  const product = await Product.findOne({ slug, isDeleted: false }).populate("subCategory").populate("category");
+    
+  if (product) {
+    res.status(200).json({ message: "Product found", data: product });
+  } else {
+    res.status(404).json({ message: "Product not found" });
+  }
+};
+
+////
+
+// exports.getProductByid = async (req, res) => {
+//   try {
+//     const id = req.params.id;
+//     if (!mongoose.Types.ObjectId.isValid(id)) {
+//       return res.status(400).json({ message: "Invalid product id" });
+//     }
+//     const product = await Product.findOne({ _id: id, isDeleted: false }).populate("subCategory").populate("category");
+//     if (!product) {
+//       return res.status(404).json({ message: "Product not found" });
+//     }
+//     res.status(200).json({ message: "Product found", data: product });
+//   } catch (err) {
+//     res
+//       .status(500)
+//       .json({ message: "Error fetching product", error: err.message });
+//   }
+// };
+
 ////////////
+exports.getProductsAndSubCategories = async (req, res) => {
+  try {
+    const categoryId = req.params.id;
+    const categoryDoc = await Category.findById(categoryId);
+    if (!categoryDoc) {
+      return res.status(404).json({ message: "Category not found" });
+    }
+
+    const subCategories = await Subcategory.find({ category: categoryDoc._id });
+    const products = await Product.find({category: categoryDoc._id,isDeleted: false,}).populate("subCategory");
+
+    res.status(200).json({message: "Data fetched successfully",data: { products, subCategories },});
+  } catch (err) {
+    res.status(500).json({ message: "Error fetching data", error: err.message });
+  }
+};
+
 ////update product
+
 exports.updateProduct = async (req, res) => {
   try {
     const id = req.params.id;
-
-    // Check if product exists
     const product = await Product.findById(id);
     if (!product) {
       return res.status(404).json({ message: "Product not found" });
     }
+    const updates = { ...req.body };
+  
+    if (req.file) {updates.image = {filename: req.file.filename,url: `/uploads/${req.file.filename}`,};
+    }
+  
+    if (req.body.name && req.body.name !== product.name) {
+      let newSlug = req.body.name.toLowerCase().replace(/\s+/g, "-");
+      const existingProduct = await Product.findOne({slug: newSlug,_id: { $ne: id },});
+      if (existingProduct) {
+        newSlug += `-${Date.now()}`;
+      }
 
-    // Update only provided fields
-    const updates = {};
-
-    if (req.body.name) updates.name = req.body.name;
-    if (req.body.price) updates.price = req.body.price;
-    if (req.body.category) updates.category = req.body.category;
-    if (req.body.supCategory) updates.supCategory = req.body.supCategory;
-    if (req.body.image) updates.image = req.body.image;
-    if (req.body.stock) updates.stock = req.body.stock;
-    if (req.body.description) updates.description = req.body.description;
-
-    // auto update slug if name changed
-    if (req.body.name) {
-      updates.slug = req.body.name.toLowerCase().replace(/\s+/g, "-");
+      updates.slug = newSlug;
     }
 
     const updatedProduct = await Product.findByIdAndUpdate(id, updates, {
@@ -148,6 +206,26 @@ exports.updateProduct = async (req, res) => {
       data: updatedProduct,
     });
   } catch (err) {
-    res.status(500).json({ message: "Something went wrong in update product" });
+    console.error(err);
+    res.status(500).json({
+      message: "Something went wrong",
+      error: err.message,
+    });
   }
 };
+//////////////
+
+exports.getProductsBySubcategory = async (req, res) => {
+  try {
+    const subId = req.params.id;
+    const products = await Product.find({subCategory: subId,isDeleted: false,}).populate("subCategory");
+    res.status(200).json({message: "Products fetched successfully",data: products,});
+  } catch (err) {
+    res.status(500).json({
+      message: "Error fetching products",
+      error: err.message,
+    });
+  }
+};
+
+

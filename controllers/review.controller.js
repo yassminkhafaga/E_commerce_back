@@ -8,7 +8,8 @@ exports.addReview = async (req, res) => {
     if ( !rating || !comment) {
       return res.status(400).json({ message: "All fields are required" });
     }
-    const review = await Review.create({user_id: req.user._id,rating,comment,});
+    const review = await Review.create({user_id: req.user._id,
+      rating,comment,});
         res.status(200).json({ message: "Review added, waiting for approval", data: review });
     } catch (err) {
         res.status(500).json({ message: "Error adding review" });
